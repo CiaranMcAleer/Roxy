@@ -1,0 +1,50 @@
+listen_addr: ":8080"
+
+api_keys:
+  - key_env_var: "OPENAI_API_KEY_1"
+    provider: "openai"
+    max_rpm: 3500
+    max_tpm: 90000
+    cooldown_sec: 60
+  - key_env_var: "OPENAI_API_KEY_2"
+    provider: "openai"
+    max_rpm: 3500
+    max_tpm: 90000
+    cooldown_sec: 60
+  - key_env_var: "ANTHROPIC_API_KEY_1"
+    provider: "anthropic"
+    max_rpm: 10000
+    max_tpm: 100000
+    cooldown_sec: 60
+  - key_env_var: "OPENROUTER_API_KEY"
+    provider: "openrouter"
+    max_rpm: 5000
+    max_tpm: 100000
+    cooldown_sec: 60
+  - key_env_var: "CHUTES_API_KEY"
+    provider: "chutes"
+    max_rpm: 5000
+    max_tpm: 100000
+    cooldown_sec: 60
+
+model_rules:
+  - source_model: "gpt-4"
+    target_models: 
+      - "gpt-4"
+      - "claude-2"
+    selection_policy: "fallback"
+  - source_model: "gpt-3.5-turbo"
+    target_models:
+      - "gpt-3.5-turbo"
+      - "claude-instant"
+    selection_policy: "roundrobin"
+
+providers:
+  openai:
+    base_url: "https://api.openai.com/v1"
+  anthropic:
+    base_url: "https://api.anthropic.com/v1"
+  openrouter:
+    base_url: "https://openrouter.ai/api/v1"
+  chutes:
+    base_url: "https://api.chutesai.com/v1"
