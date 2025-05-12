@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourusername/roxy/internal/config"
-	"github.com/yourusername/roxy/internal/rotation"
+	"github.com/CiaranMcAleer/roxy/internal/config"
+	"github.com/CiaranMcAleer/roxy/internal/rotation"
 )
 
 type Server struct {
@@ -23,6 +24,21 @@ type Server struct {
 	mu         sync.RWMutex
 	// Add round-robin counters
 	modelCounters map[string]int
+	commandHandler *CommandHandler
+	cache      *cache.Cache
+}
+
+type CommandHandler struct {
+	cfg     *config.Config
+	rotator *rotation.KeyRotator
+	mu      sync.RWMutex
+}
+
+func NewCommandHandler(cfg *config.Config, rotator *rotation.KeyRotator) *CommandHandler {
+	return &CommandHandler{
+		cfg:     cfg,
+		rotator: rotator,
+	}
 }
 
 type LLMRequest struct {
@@ -49,6 +65,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		cfg:           cfg,
 		rotator:       rotator,
 		modelCounters: make(map[string]int),
+		commandHandler: NewCommandHandler(cfg, rotator),
+		cache:        cache.New(5 * time.Minute), // 5 minute TTL
 	}
 
 	mux := http.NewServeMux()
@@ -129,10 +147,23 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body.Close()
 
+	// Check for #roxy commands
+	if strings.HasPrefix(string(body), "#roxy") {
+		s.handleCommand(w, body)
+		return
+	}
+
 	// Parse the request
 	var req LLMRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		http.Error(w, "Invalid request format", http.StatusBadRequest)
+		return
+	}
+
+	// Check cache
+	cacheKey := generateCacheKey(&req)
+	if cached, exists := s.cache.Get(cacheKey); exists {
+		w.Write(cached)
 		return
 	}
 
@@ -247,10 +278,33 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Cache and return the response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "Failed to read response", http.StatusInternalServerError)
+		return
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		s.cache.Set(cacheKey, respBody)
+	}
+
 	// Copy the final response
 	copyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+	w.Write(respBody)
+}
+
+func generateCacheKey(req *LLMRequest) string {
+	hash := sha256.New()
+	hash.Write([]byte(req.Model))
+	for _, msg := range req.Messages {
+		hash.Write([]byte(msg.Role))
+		hash.Write([]byte(msg.Content))
+	}
+	hash.Write([]byte(fmt.Sprintf("%d", req.MaxTokens)))
+	hash.Write([]byte(fmt.Sprintf("%f", req.Temperature)))
+	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
 func copyHeaders(dst, src http.Header) {
@@ -259,4 +313,72 @@ func copyHeaders(dst, src http.Header) {
 			dst.Add(k, v)
 		}
 	}
+}
+
+func (s *Server) handleCommand(w http.ResponseWriter, body []byte) {
+	cmd := strings.TrimSpace(string(body))
+	parts := strings.Fields(cmd)
+	if len(parts) < 2 {
+		http.Error(w, "Invalid command format", http.StatusBadRequest)
+		return
+	}
+
+	switch parts[1] {
+	case "add":
+		s.commandHandler.handleAddCommand(w, parts[2:])
+	case "list":
+		s.commandHandler.handleListCommand(w, parts[2:])
+	case "help":
+		s.commandHandler.handleHelpCommand(w)
+	default:
+		http.Error(w, "Unknown command", http.StatusBadRequest)
+	}
+}
+
+func (h *CommandHandler) handleAddCommand(w http.ResponseWriter, args []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if len(args) < 3 || args[0] != "key" {
+		http.Error(w, "Usage: #roxy add key [provider] [key]", http.StatusBadRequest)
+		return
+	}
+
+	provider := args[1]
+	key := args[2]
+
+	newKey := config.APIKeyConfig{
+		Provider: provider,
+		Key:      key,
+		MaxRPM:   1000, // Default values
+		MaxTPM:   100000,
+	}
+
+	h.cfg.APIKeys = append(h.cfg.APIKeys, newKey)
+	h.rotator.AddKey(newKey)
+
+	fmt.Fprintf(w, "Added key for provider: %s", provider)
+}
+
+func (h *CommandHandler) handleListCommand(w http.ResponseWriter, args []string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if len(args) < 1 || args[0] != "keys" {
+		http.Error(w, "Usage: #roxy list keys", http.StatusBadRequest)
+		return
+	}
+
+	for _, key := range h.cfg.APIKeys {
+		fmt.Fprintf(w, "Provider: %s, Key: %s...\n", key.Provider, key.Key[:4])
+	}
+}
+
+func (h *CommandHandler) handleHelpCommand(w http.ResponseWriter) {
+	helpText := `Available commands:
+#roxy add key [provider] [key] - Add new API key
+#roxy list keys - List configured API keys
+#roxy help - Show this help message`
+	
+	fmt.Fprint(w, helpText)
 }

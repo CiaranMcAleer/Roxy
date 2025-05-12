@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/roxy/internal/config"
+	"github.com/CiaranMcAleer/roxy/internal/config"
 )
 
 func TestKeyRotator(t *testing.T) {

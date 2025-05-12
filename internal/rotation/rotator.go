@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourusername/roxy/internal/config"
+	"github.com/CiaranMcAleer/roxy/internal/config"
 )
 
 type KeyRotator struct {
@@ -34,6 +34,19 @@ func NewKeyRotator(configs []config.APIKeyConfig) *KeyRotator {
 		keys:     keys,
 		lastUsed: make(map[string]time.Time),
 	}
+}
+
+func (kr *KeyRotator) AddKey(cfg config.APIKeyConfig) {
+	kr.mu.Lock()
+	defer kr.mu.Unlock()
+
+	newKey := &ApiKey{
+		Config:     cfg,
+		usageCount: 0,
+		lastUsed:   time.Time{},
+	}
+
+	kr.keys = append(kr.keys, newKey)
 }
 
 func (kr *KeyRotator) GetKey(provider string) (*ApiKey, error) {

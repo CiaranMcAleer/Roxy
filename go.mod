@@ -1,4 +1,4 @@
-module github.com/yourusername/roxy
+module github.com/CiaranMcAleer/roxy
 
 go 1.24.1
 

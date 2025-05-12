@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/yourusername/roxy/internal/config"
-	"github.com/yourusername/roxy/internal/proxy"
+	"github.com/CiaranMcAleer/roxy/internal/config"
+	"github.com/CiaranMcAleer/roxy/internal/proxy"
 )
 
 func main() {

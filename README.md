@@ -4,7 +4,19 @@ Roxy is a high-performance proxy server designed to enhance your interactions wi
 
 ## ✨ Key Features
 
-- **🔄 Smart Key Rotation**: Sophisticated API key management:
+- **💬 Chat-Based Configuration**: Manage configuration via chat commands:
+  - Add/remove API keys at runtime
+  - Modify model substitution rules
+  - Get help documentation
+  - All changes persist across restarts
+
+- **🧠 Prompt Caching**: Reduce API costs with:
+  - Automatic response caching
+  - Configurable TTL
+  - Smart cache invalidation
+  - Significant cost savings
+
+- **� Smart Key Rotation**: Sophisticated API key management:
   - Automatic rate limit avoidance
   - Intelligent load balancing
   - Configurable cooldown periods
@@ -42,7 +54,7 @@ Roxy is a high-performance proxy server designed to enhance your interactions wi
 1. Clone and set up the project:
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/Roxy.git
+git clone https://github.com/CiaranMcAleer/Roxy.git
 
 # Navigate to the project directory
 cd Roxy
@@ -146,7 +158,36 @@ providers:
 2. **Round-robin**: Cycle through models in order
 3. **Fallback**: Try models in order until successful
 
-## 🔒 Security Considerations
+## 💬 Chat Commands
+
+Roxy supports configuration via special chat commands (prefixed with #roxy):
+
+### Key Management
+```
+#roxy add key [provider] [key] - Add new API key
+#roxy remove key [provider] [key] - Remove API key
+#roxy list keys - List configured keys
+```
+
+### Model Configuration
+```
+#roxy add model [source] [target] - Add model substitution
+#roxy remove model [source] - Remove model substitution
+```
+
+### System Commands
+```
+#roxy help - Show available commands
+#roxy status - Show system status
+```
+
+### Cache Management
+```
+#roxy cache clear - Clear all cached responses
+#roxy cache stats - Show cache statistics
+```
+
+##  Security Considerations
 
 - Never store API keys in the config file
 - Use environment variables for all sensitive data

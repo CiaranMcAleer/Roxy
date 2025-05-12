@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/yourusername/roxy/internal/config"
-	"github.com/yourusername/roxy/internal/testutils"
+	"github.com/CiaranMcAleer/roxy/internal/config"
+	"github.com/CiaranMcAleer/roxy/internal/testutils"
 )
 
 func TestProxyServer(t *testing.T) {
